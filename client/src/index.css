@@ -1,0 +1,14 @@
+/**
+ * Tujuan: File CSS utama yang memuat direktif Tailwind.
+ * Dipakai oleh: src/main.jsx.
+ * Dependensi: TailwindCSS.
+ * Daftar Fungsi: -
+ * Side Effect: Menerapkan global style (base, components, utilities).
+ */
+@import "tailwindcss";
+
+@layer base {
+  body {
+    @apply bg-gray-900 text-gray-100 font-sans;
+  }
+}
