@@ -1,5 +1,5 @@
 /**
- * Tujuan: File CSS utama yang memuat direktif Tailwind.
+ * Tujuan: File CSS utama yang memuat direktif Tailwind dan Tema Stitch.
  * Dipakai oleh: src/main.jsx.
  * Dependensi: TailwindCSS.
  * Daftar Fungsi: -
@@ -7,8 +7,29 @@
  */
 @import "tailwindcss";
 
+@theme {
+  --color-primary: #006972;
+  --color-on-primary: #ffffff;
+  --color-primary-container: #38d9e9;
+  --color-on-primary-container: #005b63;
+  --color-secondary: #735c00;
+  --color-on-secondary: #ffffff;
+  --color-secondary-container: #fcd664;
+  --color-background: #f6fafe;
+  --color-surface: #f6fafe;
+  --color-surface-container: #eaeef2;
+  --color-surface-variant: #dfe3e7;
+  --color-on-surface: #171c1f;
+  --color-on-surface-variant: #3c494b;
+  --color-error: #ba1a1a;
+  --color-outline: #6c7a7b;
+
+  --font-headline: "Plus Jakarta Sans", sans-serif;
+  --font-body: "Quicksand", sans-serif;
+}
+
 @layer base {
   body {
-    @apply bg-gray-900 text-gray-100 font-sans;
+    @apply bg-background text-on-surface font-body;
   }
 }
