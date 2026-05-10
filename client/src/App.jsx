@@ -3,7 +3,7 @@
  * Dipakai oleh: src/main.jsx.
  * Dependensi: react, react-markdown.
  * Daftar Fungsi: 
- *  - App: Mengelola state sesi obrolan (history), input, dan request ke backend.
+ *  - App: Mengelola state sesi obrolan (history), input (teks dan gambar), dan request ke backend.
  * Side Effect: Membaca/menulis localStorage (migrasi calis-ai-chat -> calis-ai-sessions), HTTP POST ke /api/chat.
  */
 
@@ -11,7 +11,7 @@ import { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 
 function App() {
-  const defaultMessage = { role: 'model', text: 'Halo Bro! Gue Calis-AI, pelatih kalistenik lu. Mau mulai dari mana hari ini? Tanya aja soal form, jadwal pemula, atau rekomendasi reps/sets!' };
+  const defaultMessage = { role: 'model', text: 'Halo Bro! Gue Calis-AI, pelatih kalistenik lu. Mau mulai dari mana hari ini? Tanya aja soal form, jadwal pemula, atau kasih liat foto form lu buat gue cek!' };
 
   // State untuk menyimpan daftar sesi
   const [sessions, setSessions] = useState(() => {
@@ -39,8 +39,11 @@ function App() {
 
   const [currentSessionId, setCurrentSessionId] = useState(() => sessions[0]?.id);
   const [input, setInput] = useState('');
+  const [attachment, setAttachment] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+  
   const messagesEndRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   // Ambil data sesi yang aktif
   const currentSession = sessions.find(s => s.id === currentSessionId) || sessions[0];
@@ -64,10 +67,12 @@ function App() {
     };
     setSessions([newSession, ...sessions]);
     setCurrentSessionId(newSession.id);
+    setAttachment(null);
   };
 
   const handleSwitchSession = (id) => {
     setCurrentSessionId(id);
+    setAttachment(null);
   };
 
   const handleDeleteSession = (id, e) => {
@@ -88,21 +93,88 @@ function App() {
     }
   };
 
+  // Kompresi Gambar dengan Canvas untuk menghemat localStorage
+  const handleImageUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target.result;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 800;
+        const MAX_HEIGHT = 800;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height *= MAX_WIDTH / width;
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width *= MAX_HEIGHT / height;
+            height = MAX_HEIGHT;
+          }
+        }
+        
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        
+        // Convert to base64 jpeg quality 0.7
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+        // dataUrl bentuknya: "data:image/jpeg;base64,/9j/4AAQSkZJ..."
+        
+        // Simpan hanya base64 data dan mimeType
+        const base64Data = dataUrl.split(',')[1];
+        setAttachment({
+          mimeType: 'image/jpeg',
+          data: base64Data,
+          previewUrl: dataUrl
+        });
+        
+        // Reset file input agar bisa upload file yang sama lagi jika dihapus
+        if(fileInputRef.current) fileInputRef.current.value = "";
+      };
+    };
+  };
+
+  const removeAttachment = () => {
+    setAttachment(null);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!input.trim() || isLoading) return;
+    if ((!input.trim() && !attachment) || isLoading) return;
 
     const userMessageText = input.trim();
     setInput('');
+    const currentAttachment = attachment;
+    setAttachment(null);
     
-    // Logika auto-title jika ini pesan pertama user di sesi ini (messages.length == 1 berarti hanya ada 1 pesan model)
+    // Logika auto-title jika ini pesan pertama user di sesi ini
     let newTitle = currentSession.title;
     if (messages.length === 1 && currentSession.title === 'Obrolan Baru') {
-      const words = userMessageText.split(' ');
-      newTitle = words.slice(0, 5).join(' ') + (words.length > 5 ? '...' : '');
+      if (userMessageText) {
+        const words = userMessageText.split(' ');
+        newTitle = words.slice(0, 5).join(' ') + (words.length > 5 ? '...' : '');
+      } else if (currentAttachment) {
+        newTitle = "Analisis Gambar";
+      }
     }
 
-    const newMessages = [...messages, { role: 'user', text: userMessageText }];
+    const newMessageObj = { role: 'user', text: userMessageText };
+    if (currentAttachment) {
+      newMessageObj.image = { mimeType: currentAttachment.mimeType, data: currentAttachment.data };
+    }
+
+    const newMessages = [...messages, newMessageObj];
     
     // Update local state terlebih dahulu
     const updateSessionsState = (updatedMessages) => {
@@ -147,7 +219,7 @@ function App() {
         <div className="p-6 border-b border-surface-variant flex justify-between items-center">
           <h1 className="text-2xl font-headline font-extrabold text-primary flex items-center gap-2">
             <span className="material-symbols-outlined">fitness_center</span>
-            CaliDex
+            Calis-AI
           </h1>
         </div>
         
@@ -199,7 +271,7 @@ function App() {
         <header className="h-16 bg-surface border-b border-surface-variant flex items-center justify-between px-4 md:px-8 shrink-0 shadow-sm z-10">
           <div className="flex items-center gap-3 md:hidden">
             <span className="material-symbols-outlined text-primary text-2xl">fitness_center</span>
-            <h1 className="text-xl font-headline font-extrabold text-primary">CaliDex</h1>
+            <h1 className="text-xl font-headline font-extrabold text-primary">Calis-AI</h1>
           </div>
           <div className="hidden md:block">
             <h2 className="text-lg font-headline font-bold text-on-surface">{currentSession?.title || 'Trainer Dashboard'}</h2>
@@ -212,15 +284,25 @@ function App() {
         </header>
 
         {/* Chat Interface */}
-        <div className="flex-1 overflow-hidden flex flex-col max-w-4xl mx-auto w-full p-4 md:p-6 gap-4">
+        <div className="flex-1 overflow-hidden flex flex-col max-w-4xl mx-auto w-full p-4 md:p-6 gap-4 relative">
           
           {/* Chat Box */}
           <div className="flex-1 overflow-y-auto bg-surface rounded-3xl p-5 shadow-sm border border-surface-variant flex flex-col gap-4 scroll-smooth">
             {messages.map((msg, idx) => (
               <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                 <div className={`max-w-[85%] rounded-3xl px-6 py-3 shadow-sm ${msg.role === 'user' ? 'bg-primary text-on-primary rounded-br-sm' : 'bg-surface-container text-on-surface rounded-bl-sm border border-surface-variant'}`}>
+                  
+                  {/* Jika pesan memiliki gambar */}
+                  {msg.image && (
+                    <img 
+                      src={`data:${msg.image.mimeType};base64,${msg.image.data}`} 
+                      alt="Uploaded visual" 
+                      className="max-w-full rounded-xl mb-3 max-h-64 object-cover border border-primary-container/20"
+                    />
+                  )}
+
                   {msg.role === 'user' ? (
-                    <p className="font-medium text-on-primary">{msg.text}</p>
+                    msg.text && <p className="font-medium text-white">{msg.text}</p>
                   ) : (
                     <div className="prose prose-sm sm:prose-base max-w-none text-on-surface [&>ul]:list-disc [&>ul]:ml-4 [&>ol]:list-decimal [&>ol]:ml-4">
                       <ReactMarkdown>{msg.text}</ReactMarkdown>
@@ -233,7 +315,7 @@ function App() {
               <div className="flex justify-start">
                 <div className="bg-surface-container text-on-surface-variant rounded-3xl px-6 py-3 rounded-bl-sm border border-surface-variant flex items-center gap-3">
                   <span className="material-symbols-outlined animate-spin text-primary">sync</span>
-                  <span className="font-medium text-sm">Mengetik balasan...</span>
+                  <span className="font-medium text-sm">Menganalisis...</span>
                 </div>
               </div>
             )}
@@ -241,24 +323,61 @@ function App() {
           </div>
 
           {/* Input Area */}
-          <form onSubmit={handleSubmit} className="flex gap-3 shrink-0">
-            <input 
-              type="text" 
-              value={input} 
-              onChange={(e) => setInput(e.target.value)} 
-              placeholder="Tanya soal form pull-up, jadwal pemula..." 
-              className="flex-1 bg-surface border border-surface-variant text-on-surface rounded-full px-6 py-4 font-medium focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition shadow-sm"
-              disabled={isLoading}
-            />
-            <button 
-              type="submit" 
-              disabled={isLoading || !input.trim()}
-              className="bg-primary hover:bg-primary-container hover:text-on-primary-container text-on-primary font-bold w-14 h-14 rounded-full transition disabled:opacity-50 flex items-center justify-center shadow-md shrink-0"
-            >
-              <span className="material-symbols-outlined">send</span>
-            </button>
-          </form>
+          <div className="shrink-0 flex flex-col gap-2 relative">
+            
+            {/* Image Preview Overlay */}
+            {attachment && (
+              <div className="relative inline-block w-max">
+                <img 
+                  src={attachment.previewUrl} 
+                  alt="Preview" 
+                  className="h-24 w-24 object-cover rounded-xl border-2 border-primary shadow-sm"
+                />
+                <button 
+                  onClick={removeAttachment}
+                  className="absolute -top-2 -right-2 bg-error text-white rounded-full p-1 shadow-md hover:scale-110 transition"
+                  title="Remove image"
+                >
+                  <span className="material-symbols-outlined text-[14px]">close</span>
+                </button>
+              </div>
+            )}
 
+            <form onSubmit={handleSubmit} className="flex gap-3 items-end w-full">
+              
+              <input 
+                type="file" 
+                accept="image/*"
+                ref={fileInputRef}
+                onChange={handleImageUpload}
+                className="hidden" 
+              />
+              <button 
+                type="button" 
+                onClick={() => fileInputRef.current?.click()}
+                className="bg-surface border border-surface-variant text-on-surface-variant hover:bg-surface-variant hover:text-primary h-14 w-14 rounded-full transition shadow-sm shrink-0 flex items-center justify-center"
+                title="Attach Image"
+              >
+                <span className="material-symbols-outlined">attach_file</span>
+              </button>
+
+              <input 
+                type="text" 
+                value={input} 
+                onChange={(e) => setInput(e.target.value)} 
+                placeholder="Tanya soal form pull-up, kirim foto alat..." 
+                className="flex-1 bg-surface border border-surface-variant text-on-surface rounded-full px-6 py-4 font-medium focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition shadow-sm"
+                disabled={isLoading}
+              />
+              <button 
+                type="submit" 
+                disabled={isLoading || (!input.trim() && !attachment)}
+                className="bg-primary hover:bg-primary-container hover:text-on-primary-container text-on-primary font-bold w-14 h-14 rounded-full transition disabled:opacity-50 flex items-center justify-center shadow-md shrink-0"
+              >
+                <span className="material-symbols-outlined">send</span>
+              </button>
+            </form>
+          </div>
         </div>
       </main>
     </div>

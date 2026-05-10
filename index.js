@@ -27,10 +27,21 @@ app.post('/api/chat', async (req, res) => {
   try {
     if (!Array.isArray(conversation)) throw new Error('Messages must be an array!');
 
-    const contents = conversation.map(({ role, text }) => ({
-      role,
-      parts: [{ text }]
-    }));
+    const contents = conversation.map(({ role, text, image }) => {
+      const parts = [];
+      if (text) {
+        parts.push({ text });
+      }
+      if (image && image.data && image.mimeType) {
+        parts.push({
+          inlineData: {
+            data: image.data,
+            mimeType: image.mimeType
+          }
+        });
+      }
+      return { role, parts };
+    });
 
     const response = await ai.models.generateContent({
       model: GEMINI_MODEL,
